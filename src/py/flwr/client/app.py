@@ -98,6 +98,7 @@ def start_client(
     root_certificates: Optional[Union[bytes, str]] = None,
     rest: bool = False,  # Deprecated in favor of `transport`
     transport: Optional[str] = None,
+    token: str
 ) -> None:
     """Start a Flower client node which connects to a Flower server.
 
@@ -131,6 +132,8 @@ def start_client(
         - 'grpc-bidi': gRPC, bidirectional streaming
         - 'grpc-rere': gRPC, request-response (experimental)
         - 'rest': HTTP (experimental)
+    token: str
+        Security token given by the federated server
 
     Examples
     --------
@@ -188,6 +191,7 @@ def start_client(
         sleep_duration: int = 0
         with connection(
             address,
+            token=token,
             max_message_length=grpc_max_message_length,
             root_certificates=root_certificates,
         ) as conn:
@@ -226,6 +230,7 @@ def start_numpy_client(
     root_certificates: Optional[bytes] = None,
     rest: bool = False,  # Deprecated in favor of `transport`
     transport: Optional[str] = None,
+    token: str
 ) -> None:
     """Start a Flower NumPyClient which connects to a gRPC server.
 
@@ -258,6 +263,8 @@ def start_numpy_client(
         - 'grpc-bidi': gRPC, bidirectional streaming
         - 'grpc-rere': gRPC, request-response (experimental)
         - 'rest': HTTP (experimental)
+    token: str
+        Security token given by the federated server
 
     Examples
     --------
@@ -285,6 +292,7 @@ def start_numpy_client(
         root_certificates=root_certificates,
         rest=rest,
         transport=transport,
+        token=token
     )
 
 

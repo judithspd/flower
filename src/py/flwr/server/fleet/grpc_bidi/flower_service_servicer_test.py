@@ -16,6 +16,7 @@
 
 
 import unittest
+import uuid
 from unittest.mock import MagicMock, call
 
 from flwr.proto.transport_pb2 import ClientMessage, ServerMessage
@@ -124,6 +125,7 @@ class FlowerServiceServicerTestCase(unittest.TestCase):
             num_server_messages += 1
 
         assert len(self.client_messages) == num_server_messages
+
         assert self.grpc_client_proxy_mock.cid == CLIENT_CID
 
         self.client_proxy_factory_mock.assert_called_once_with(

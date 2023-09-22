@@ -14,7 +14,6 @@
 # ==============================================================================
 """Implements utility function to create a gRPC server."""
 
-
 import concurrent.futures
 import sys
 from logging import ERROR
@@ -30,6 +29,8 @@ from flwr.server.driver.driver_servicer import DriverServicer
 from flwr.server.fleet.grpc_bidi.flower_service_servicer import FlowerServiceServicer
 from flwr.server.fleet.grpc_rere.fleet_servicer import FleetServicer
 
+import secrets
+
 INVALID_CERTIFICATES_ERR_MSG = """
     When setting any of root_certificate, certificate, or private_key,
     all of them need to be set.
@@ -38,11 +39,34 @@ INVALID_CERTIFICATES_ERR_MSG = """
 AddServicerToServerFn = Callable[..., Any]
 
 
+class BearerTokenInterceptor(grpc.ServerInterceptor):
+    def __init__(self, token: Optional[str] = None) -> None:
+        self.token = token or secrets.token_hex(32)
+        print("TOKEN ->", self.token)
+
+        super(self.__class__, self).__init__()
+
+        def abort(ignored_request, context):
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Invalid token")
+
+        self._abortion = grpc.unary_unary_rpc_method_handler(abort)
+
+    def intercept_service(self, continuation, handler_call_details):
+        if handler_call_details.method.endswith("Unauthenticated"):
+            return continuation(handler_call_details)
+
+        auth_token = handler_call_details.invocation_metadata[0].value
+        if auth_token != "Bearer {}".format(self.token):
+            return self._abortion
+
+        return continuation(handler_call_details)
+
+
 def valid_certificates(certificates: Tuple[bytes, bytes, bytes]) -> bool:
     """Validate certificates tuple."""
     is_valid = (
-        all(isinstance(certificate, bytes) for certificate in certificates)
-        and len(certificates) == 3
+            all(isinstance(certificate, bytes) for certificate in certificates)
+            and len(certificates) == 3
     )
 
     if not is_valid:
@@ -52,12 +76,12 @@ def valid_certificates(certificates: Tuple[bytes, bytes, bytes]) -> bool:
 
 
 def start_grpc_server(  # pylint: disable=too-many-arguments
-    client_manager: ClientManager,
-    server_address: str,
-    max_concurrent_workers: int = 1000,
-    max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
-    keepalive_time_ms: int = 210000,
-    certificates: Optional[Tuple[bytes, bytes, bytes]] = None,
+        client_manager: ClientManager,
+        server_address: str,
+        max_concurrent_workers: int = 1000,
+        max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
+        keepalive_time_ms: int = 210000,
+        certificates: Optional[Tuple[bytes, bytes, bytes]] = None,
 ) -> grpc.Server:
     """Create and start a gRPC server running FlowerServiceServicer.
 
@@ -148,16 +172,16 @@ def start_grpc_server(  # pylint: disable=too-many-arguments
 
 
 def generic_create_grpc_server(  # pylint: disable=too-many-arguments
-    servicer_and_add_fn: Union[
-        Tuple[FleetServicer, AddServicerToServerFn],
-        Tuple[FlowerServiceServicer, AddServicerToServerFn],
-        Tuple[DriverServicer, AddServicerToServerFn],
-    ],
-    server_address: str,
-    max_concurrent_workers: int = 1000,
-    max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
-    keepalive_time_ms: int = 210000,
-    certificates: Optional[Tuple[bytes, bytes, bytes]] = None,
+        servicer_and_add_fn: Union[
+            Tuple[FleetServicer, AddServicerToServerFn],
+            Tuple[FlowerServiceServicer, AddServicerToServerFn],
+            Tuple[DriverServicer, AddServicerToServerFn],
+        ],
+        server_address: str,
+        max_concurrent_workers: int = 1000,
+        max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
+        keepalive_time_ms: int = 210000,
+        certificates: Optional[Tuple[bytes, bytes, bytes]] = None,
 ) -> grpc.Server:
     """Create a gRPC server with a single servicer.
 
@@ -241,6 +265,7 @@ def generic_create_grpc_server(  # pylint: disable=too-many-arguments
         # returning RESOURCE_EXHAUSTED status, or None to indicate no limit.
         maximum_concurrent_rpcs=max_concurrent_workers,
         options=options,
+        interceptors=[BearerTokenInterceptor()],
     )
     add_servicer_to_server_fn(servicer, server)
 

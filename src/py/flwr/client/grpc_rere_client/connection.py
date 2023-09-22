@@ -41,10 +41,11 @@ def on_channel_state_change(channel_connectivity: str) -> None:
 @contextmanager
 def grpc_request_response(
     server_address: str,
+    token: str,
     max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,  # pylint: disable=W0613
     root_certificates: Optional[
         Union[bytes, str]
-    ] = None,  # pylint: disable=unused-argument
+    ] = None,  # pylint: disable=unused-argument,
 ) -> Iterator[
     Tuple[Callable[[], Optional[ServerMessage]], Callable[[ClientMessage], None]]
 ]:
@@ -75,6 +76,7 @@ def grpc_request_response(
 
     channel = create_channel(
         server_address=server_address,
+        token=token,
         root_certificates=root_certificates,
         max_message_length=max_message_length,
     )

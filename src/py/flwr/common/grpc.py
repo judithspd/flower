@@ -14,25 +14,39 @@
 # ==============================================================================
 """Utility functions for gRPC."""
 
-
 from logging import INFO
 from typing import Optional
 
 import grpc
+from grpc_interceptor import ClientInterceptor
 
 from flwr.common.logger import log
 
 GRPC_MAX_MESSAGE_LENGTH: int = 536_870_912  # == 512 * 1024 * 1024
 
 
+class CustomAuthInterceptor(ClientInterceptor):
+    def __init__(self, token):
+        self.token = token
+
+    def intercept_unary(self, continuation, client_call_details, request):
+        metadata = (('authorization', 'Bearer ' + self.token),)
+        client_call_details = client_call_details.with_call_credentials(self)
+        client_call_details = client_call_details.with_initial_metadata(metadata)
+        return continuation(client_call_details, request)
+
+
 def create_channel(
-    server_address: str,
-    root_certificates: Optional[bytes] = None,
-    max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
+        server_address: str,
+        token: str,
+        root_certificates: Optional[bytes] = None,
+        max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
 ) -> grpc.Channel:
     """Create a gRPC channel, either secure or insecure."""
     # Possible options:
     # https://github.com/grpc/grpc/blob/v1.43.x/include/grpc/impl/codegen/grpc_types.h
+    interceptor = CustomAuthInterceptor(token)
+
     channel_options = [
         ("grpc.max_send_message_length", max_message_length),
         ("grpc.max_receive_message_length", max_message_length),
@@ -43,9 +57,13 @@ def create_channel(
         channel = grpc.secure_channel(
             server_address, ssl_channel_credentials, options=channel_options
         )
+        print('Intercept channel')
+        channel = grpc.intercept_channel(channel, interceptor)
         log(INFO, "Opened secure gRPC connection using certificates")
     else:
         channel = grpc.insecure_channel(server_address, options=channel_options)
+        print('Intercept channel')
+        channel = grpc.intercept_channel(channel, interceptor)
         log(INFO, "Opened insecure gRPC connection (no certificates were passed)")
 
     return channel
